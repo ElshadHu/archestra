@@ -114,14 +114,20 @@ function McpToolCallsTable({
           </Button>
         );
       },
-      cell: ({ row }) => (
-        <div className="font-mono text-xs">
-          {formatDate({
-            date: new Date(row.original.createdAt).toLocaleDateString(),
-          })}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const dateString =
+          typeof row.original.createdAt === "string"
+            ? row.original.createdAt
+            : new Date(row.original.createdAt).toISOString();
+
+        return (
+          <div className="font-mono text-xs">
+            {formatDate({ date: dateString })}
+          </div>
+        );
+      },
     },
+
     {
       id: "method",
       header: "Method",
@@ -180,9 +186,10 @@ function McpToolCallsTable({
         );
       },
       cell: ({ row }) => {
+        const mcpServerName = row.original.mcpServerName;
         return (
           <Badge variant="secondary" className="text-xs whitespace-normal">
-            {row.original.mcpServerName}
+            <TruncatedText message={mcpServerName} maxLength={20} />
           </Badge>
         );
       },
