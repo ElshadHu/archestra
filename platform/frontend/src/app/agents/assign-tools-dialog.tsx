@@ -46,7 +46,7 @@ export function AssignToolsDialog({
   // Fetch currently assigned tools for this agent (use getAllAgentTools to get credentialSourceMcpServerId)
   const { data: allAgentTools } = useAllAgentTools({});
   const agentToolRelations = useMemo(
-    () => allAgentTools?.filter((at) => at.agent.id === agent.id) || [],
+    () => allAgentTools?.data?.filter((at) => at.agent.id === agent.id) || [],
     [allAgentTools, agent.id],
   );
 
@@ -286,7 +286,6 @@ export function AssignToolsDialog({
                                 </span>
                                 <InstallationSelect
                                   catalogId={catalogId}
-                                  agentIds={[agent.id]}
                                   onValueChange={(executionSourceId) =>
                                     handleExecutionSourceChange(
                                       tool.id,
@@ -297,6 +296,7 @@ export function AssignToolsDialog({
                                     selectedTool?.executionSourceId ?? undefined
                                   }
                                   className="mb-4"
+                                  shouldSetDefaultValue
                                 />
                               </>
                             ) : (
@@ -306,7 +306,6 @@ export function AssignToolsDialog({
                                 </span>
                                 <TokenSelect
                                   catalogId={catalogId}
-                                  agentIds={[agent.id]}
                                   onValueChange={(credentialsSourceId) =>
                                     handleCredentialsSourceChange(
                                       tool.id,
@@ -318,6 +317,7 @@ export function AssignToolsDialog({
                                     undefined
                                   }
                                   className="mb-4"
+                                  shouldSetDefaultValue
                                 />
                               </>
                             )}

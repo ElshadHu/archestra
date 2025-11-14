@@ -6,14 +6,9 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import {
   ChevronDown,
   ChevronUp,
-  MessageCircle,
-  MoreHorizontal,
-  Pencil,
-  Plug,
   Plus,
   Search,
   Tag,
-  Trash2,
   Wrench,
   X,
 } from "lucide-react";
@@ -26,9 +21,11 @@ import {
   AgentLabels,
   type AgentLabelsRef,
 } from "@/components/agent-labels";
+import { DebouncedInput } from "@/components/debounced-input";
 import { LoadingSpinner } from "@/components/loading";
 import { McpConnectionInstructions } from "@/components/mcp-connection-instructions";
 import { ProxyConnectionInstructions } from "@/components/proxy-connection-instructions";
+import { ActionButton } from "@/components/ui/action-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,14 +38,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -74,6 +63,7 @@ import {
 } from "@/lib/agent.query";
 import { useHasPermissions } from "@/lib/auth.query";
 import { formatDate } from "@/lib/utils";
+import { AgentActions } from "./agent-actions";
 import { AssignToolsDialog } from "./assign-tools-dialog";
 import { ChatConfigDialog } from "./chat-config-dialog";
 
@@ -228,28 +218,6 @@ function Agents() {
     setSorting([{ id: sortBy, desc: sortDirection === "desc" }]);
   }, [sortBy, sortDirection]);
 
-  // Debounce search query updates to URL
-  useEffect(() => {
-    // Only run if search query differs from URL
-    const currentNameParam = searchParams.get("name") || "";
-    if (searchQuery === currentNameParam) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (searchQuery) {
-        params.set("name", searchQuery);
-      } else {
-        params.delete("name");
-      }
-      params.set("page", "1"); // Reset to first page on search
-      router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    }, 500); // 500ms debounce
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, searchParams, router, pathname]);
-
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [connectingAgent, setConnectingAgent] = useState<{
     id: string;
@@ -273,10 +241,21 @@ function Agents() {
 
   type AgentData = (typeof agents)[number];
 
-  // Update local search state only - URL update is debounced in useEffect
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-  }, []);
+  // Update URL when search query changes
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+      const params = new URLSearchParams(searchParams.toString());
+      if (value) {
+        params.set("name", value);
+      } else {
+        params.delete("name");
+      }
+      params.set("page", "1"); // Reset to first page on search
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, router, pathname],
+  );
 
   // Update URL when sorting changes
   const handleSortingChange = useCallback(
@@ -400,7 +379,21 @@ function Agents() {
           <SortIcon isSorted={column.getIsSorted()} />
         </Button>
       ),
-      cell: ({ row }) => <div>{row.original.tools.length}</div>,
+      cell: ({ row }) => {
+        const agent = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            {row.original.tools.length}
+            <ActionButton
+              tooltip="Assign Tools"
+              aria-label="Assign Tools"
+              onClick={() => setAssigningToolsAgent(agent)}
+            >
+              <Wrench className="h-4 w-4" />
+            </ActionButton>
+          </div>
+        );
+      },
     },
     {
       id: "team",
@@ -421,103 +414,19 @@ function Agents() {
     {
       id: "actions",
       header: "Actions",
-      size: 100,
+      size: 176,
+      enableHiding: false,
       cell: ({ row }) => {
         const agent = row.original;
         return (
-          <div className="flex items-center gap-0 border rounded-md overflow-hidden w-fit">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConnectingAgent({
-                        id: agent.id,
-                        name: agent.name,
-                      });
-                    }}
-                    className="rounded-none border-r h-8 w-8"
-                  >
-                    <Plug className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Connect</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="More Options"
-                  onClick={(e) => e.stopPropagation()}
-                  className="rounded-none h-8 w-8"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuGroup>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setAssigningToolsAgent(agent);
-                    }}
-                  >
-                    <Wrench className="h-4 w-4" />
-                    Assign Tools
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setChatConfigAgent(agent);
-                    }}
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Configure Chat
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingAgent({
-                        id: agent.id,
-                        name: agent.name,
-                        teams: agent.teams || [],
-                        labels: agent.labels || [],
-                        optimizeCost: agent.optimizeCost,
-                        considerContextUntrusted:
-                          agent.considerContextUntrusted,
-                      });
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    Edit
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                {userCanDeleteAgents && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuGroup>
-                      <DropdownMenuItem
-                        variant="destructive"
-                        data-testid={`${E2eTestId.DeleteAgentButton}-${agent.name}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingAgentId(agent.id);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuGroup>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <AgentActions
+            agent={agent}
+            userCanDeleteAgents={userCanDeleteAgents || false}
+            onConnect={setConnectingAgent}
+            onConfigureChat={setChatConfigAgent}
+            onEdit={setEditingAgent}
+            onDelete={setDeletingAgentId}
+          />
         );
       },
     },
@@ -561,19 +470,17 @@ function Agents() {
       </div>
 
       <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">
-        {agents.length > 0 ? (
-          <div className="mb-6">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search agents by name..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <DebouncedInput
+              placeholder="Search agents by name..."
+              initialValue={searchQuery}
+              onChange={handleSearchChange}
+              className="pl-9"
+            />
           </div>
-        ) : null}
+        </div>
 
         {!agents || agents.length === 0 ? (
           <div className="text-muted-foreground">
